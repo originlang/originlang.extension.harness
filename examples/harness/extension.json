@@ -1,0 +1,16 @@
+{
+  "id": "harness",
+  "name": "Agent Harness",
+  "version": "0.1.0",
+  "apiVersion": "1",
+  "description": "Runs an agent loop over the tools other extensions contribute",
+  "main": "harness.dll",
+  "runtime": "dylib",
+  "capabilities": ["extension.call", "log.write"],
+  "activationEvents": ["onStartup"],
+  "limits": {
+    "memoryBytes": 67108864,
+    "stackBytes": 524288,
+    "timeoutMs": 600000
+  }
+}

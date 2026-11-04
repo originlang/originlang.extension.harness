@@ -1,0 +1,19 @@
+[package]
+name = "originlang-ext-harness-plugin"
+description = "The harness exported as a loadable host plugin"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[lib]
+name = "harness"
+crate-type = ["cdylib"]
+path = "src/lib.rs"
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+originlang-ext-harness.workspace = true
+originlang-ext-plugin-abi.workspace = true

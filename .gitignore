@@ -1,0 +1,18 @@
+# 构建产物
+/target
+**/*.rs.bk
+
+# 插件二进制：由 crates/plugin 构建后拷进示例包，不入库
+examples/*/*.dll
+examples/*/*.so
+examples/*/*.dylib
+
+# 运行产物：转录、结果与临时安装目录
+/.harness
+/tmp
+
+# 本地密钥与配置
+.env
+*.key
+
+.DS_Store

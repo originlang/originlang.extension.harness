@@ -1,0 +1,17 @@
+[package]
+name = "originlang-ext-harness"
+description = "Agent loop that runs as a first-party plugin inside the OriginLang extension host"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+# The host boundary is the C ABI, not a Rust dependency: a plugin is loaded into
+# the host, it does not link it.
+originlang-ext-plugin-abi.workspace = true

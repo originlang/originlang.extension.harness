@@ -1,0 +1,51 @@
+{
+  "id": "toolbox",
+  "name": "Toolbox",
+  "version": "0.1.0",
+  "apiVersion": "1",
+  "description": "Notes and arithmetic, contributed to the harness as callable tools",
+  "main": "main.js",
+  "capabilities": ["storage.read", "storage.write", "log.write"],
+  "contributes": {
+    "tools": [
+      {
+        "name": "note_save",
+        "description": "Persist a note under a key. Use this to remember something for a later turn.",
+        "method": "note_save",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "key": { "type": "string", "description": "Note identifier" },
+            "value": { "type": "string", "description": "Text to store" }
+          },
+          "required": ["key", "value"]
+        }
+      },
+      {
+        "name": "note_read",
+        "description": "Read a note by key. Returns null when nothing is stored.",
+        "method": "note_read",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "key": { "type": "string", "description": "Note identifier" }
+          },
+          "required": ["key"]
+        }
+      },
+      {
+        "name": "add",
+        "description": "Add two numbers exactly. Use this instead of mental arithmetic.",
+        "method": "add",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "a": { "type": "number" },
+            "b": { "type": "number" }
+          },
+          "required": ["a", "b"]
+        }
+      }
+    ]
+  }
+}
