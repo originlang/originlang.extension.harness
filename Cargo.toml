@@ -19,16 +19,13 @@ anyhow = "1"
 
 # 宿主边界：只依赖 C ABI 契约 crate，不链接宿主本身。
 # 插件被宿主加载，而不是反过来依赖宿主。
-originlang-ext-plugin-abi = { path = "../originlang.extension.host/crates/plugin-abi" }
+#
+# 用 git 而不是 path：本仓库可以单独检出、单独构建，不需要宿主仓库并排放在
+# 同级目录。rev 锁定宿主契约的具体提交，宿主升级时改这里再跑
+# `cargo update -p originlang-ext-plugin-abi`。
+originlang-ext-plugin-abi = { git = "https://github.com/originlang/originlang.extension.host", rev = "a218046" }
 
-# 仅 CLI（开发与 CI 用）需要直接构造一个宿主实例
-originlang-ext-host = { path = "../originlang.extension.host/crates/host" }
-originlang-ext-runtime = { path = "../originlang.extension.host/crates/runtime" }
-originlang-ext-runtime-process = { path = "../originlang.extension.host/crates/runtime-process" }
-originlang-ext-runtime-quickjs = { path = "../originlang.extension.host/crates/runtime-quickjs" }
-originlang-ext-runtime-dylib = { path = "../originlang.extension.host/crates/runtime-dylib" }
-
-# 内部 crate
+# 内部 crate（同仓成员，必须用 path）
 originlang-ext-harness = { path = "crates/harness" }
 
 [profile.dev]

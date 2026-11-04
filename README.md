@@ -57,6 +57,8 @@ cargo build --release -p originlang-ext-harness-plugin
 cp target/release/harness.dll examples/harness/
 ```
 
+唯一的跨仓库依赖 `originlang-ext-plugin-abi` 以 git 依赖锁定在宿主仓库的一个 rev 上，因此本仓库可以单独检出，不要求宿主仓库放在同级目录；代价是首次构建需要能访问 GitHub，宿主 ABI 升级时改 `Cargo.toml` 里的 rev 再 `cargo update`。
+
 包的清单声明 `runtime: dylib` 与入口文件。安装后宿主默认的 `--backend auto` 会把它路由到 dylib 后端：
 
 ```sh

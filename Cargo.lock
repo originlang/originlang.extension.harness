@@ -37,6 +37,7 @@ dependencies = [
 [[package]]
 name = "originlang-ext-plugin-abi"
 version = "0.1.0"
+source = "git+https://github.com/originlang/originlang.extension.host?rev=a218046#a218046c9515dd3fe2586844359ae3a6f1692307"
 dependencies = [
  "serde_json",
 ]
