@@ -12,11 +12,14 @@
 ## 依赖与交付
 
 ```text
-bootidea.cli → Host 库 → dylib 后端 → harness 动态库插件
-HomeWorld → 可选启动 bootidea 外部进程 → 同一 Host
+bootidea.cli（独立运行）→ 可选下载、启动或连接 Host 独立服务
+HomeWorld（独立运行）→ 可选下载、启动或连接 Host 独立服务
+Host → dylib 后端 → harness 动态库插件
 ```
 
 - 本项目交付插件包和动态库，不交付另一个 CLI 或守护进程。
+- CLI 与 HomeWorld 均不直接加载或编译依赖 harness；插件由 Host 加载。两者不必安装 Host 或 harness 即可使用各自基础功能。
+- 上述消费者关系是目标架构；当前 CLI 内嵌 Host、HomeWorld 启动 CLI 的旧路径仍需迁移，不在 harness 中增加对旧路径的耦合。
 - Host ABI 依赖按仓库现有方式锁定版本；不可要求其他仓库必须并排检出。
 - CLI 负责用户命令，Host 负责扩展生命周期、工具执行与能力裁决。
 - Harness 不为工具实现另一套沙箱，也不管理 HomeWorld 的账号、成员或家庭数据库。
