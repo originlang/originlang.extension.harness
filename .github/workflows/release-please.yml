@@ -1,0 +1,107 @@
+name: Release Please
+
+# 正式版本由 release-please 依据 conventional commits 产生：
+# 它开一个 "chore: release" PR，合并后打 harness-vX.Y.Z tag 并生成 CHANGELOG，
+# 随后本工作流在该 tag 上构建产物并挂到 release。nightly 不走这条线。
+on:
+  push:
+    branches: ['feature/dev']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-please-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    name: release-please
+    if: github.ref_type == 'branch' && github.ref_name == (vars.RELEASE_BRANCH || 'feature/dev')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    outputs:
+      released: ${{ steps.release.outputs.release_created }}
+      tag: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN || github.token }}
+          target-branch: ${{ vars.RELEASE_BRANCH || 'feature/dev' }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  package:
+    name: Package (${{ matrix.target }})
+    needs: release-please
+    if: needs.release-please.outputs.released == 'true'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+          - os: windows-2022
+            target: x86_64-pc-windows-msvc
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      CARGO_TERM_COLOR: always
+      CARGO_INCREMENTAL: '0'
+      BUILD_TARGET: ${{ matrix.target }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release-please.outputs.tag }}
+          persist-credentials: false
+      - name: Install repository toolchain
+        run: rustup show active-toolchain
+      - name: Run tests
+        run: cargo test --locked -p originlang-ext-harness
+      - name: Build the plugin
+        run: cargo build --locked --release -p originlang-ext-harness-plugin --target $env:BUILD_TARGET
+      - name: Package
+        run: ./.github/scripts/package.ps1 -Target $env:BUILD_TARGET -Channel stable
+      - uses: actions/upload-artifact@v4
+        with:
+          name: package-${{ matrix.target }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+
+  release:
+    name: Attach assets
+    needs: [release-please, package]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: package-*
+          path: dist
+          merge-multiple: true
+      - name: Upload assets to the release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ needs.release-please.outputs.tag }}
+        run: |
+          set -euo pipefail
+          cd dist
+          # 矩阵少一个平台时宁可失败，也不要发半套产物
+          test "$(find . -maxdepth 1 -name '*.sha256' | wc -l)" -eq 2
+          sha256sum --check ./*.sha256
+          gh release upload "$RELEASE_TAG" ./*.zip ./*.tar.gz ./*.sha256 --clobber

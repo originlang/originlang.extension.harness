@@ -1,0 +1,102 @@
+name: Nightly
+
+# nightly 包只从开发分支产出：它带的是 branch 上的最新代码，不是发布版本。
+# 每次构建打一个 <cargo 版本>-nightly.<yyyymmdd>.<n> tag；正式版本走 release-please。
+on:
+  push:
+    branches: ['feature/dev']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# 序号由当日已有的 tag 数推导，并发跑会撞号，所以在入口串行。
+concurrency:
+  group: nightly-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  version:
+    name: Resolve version
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+      package: ${{ steps.resolve.outputs.package }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Resolve nightly version
+        id: resolve
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: ./.github/scripts/nightly-version.ps1
+
+  package:
+    name: Package (${{ matrix.target }})
+    needs: version
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+          - os: windows-2022
+            target: x86_64-pc-windows-msvc
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      CARGO_TERM_COLOR: always
+      CARGO_INCREMENTAL: '0'
+      BUILD_TARGET: ${{ matrix.target }}
+      NIGHTLY_VERSION: ${{ needs.version.outputs.package }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install repository toolchain
+        run: rustup show active-toolchain
+      - name: Run tests
+        run: cargo test --locked -p originlang-ext-harness
+      - name: Build the plugin
+        run: cargo build --locked --release -p originlang-ext-harness-plugin --target $env:BUILD_TARGET
+      - name: Package
+        run: ./.github/scripts/package.ps1 -Target $env:BUILD_TARGET -Channel nightly
+      - uses: actions/upload-artifact@v4
+        with:
+          name: package-${{ matrix.target }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+
+  publish:
+    name: Publish prerelease
+    needs: [version, package]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: package-*
+          path: dist
+          merge-multiple: true
+      - name: Publish the prerelease
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PACKAGE: ${{ needs.version.outputs.package }}
+          CARGO_VERSION: ${{ needs.version.outputs.version }}
+        run: ./.github/scripts/publish-nightly.sh

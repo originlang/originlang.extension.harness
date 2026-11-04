@@ -1,0 +1,5 @@
+{
+  ".": "0.1.0",
+  "crates/harness": "0.1.0",
+  "crates/plugin": "0.1.0"
+}

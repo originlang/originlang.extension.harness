@@ -66,6 +66,21 @@ bootidea ext install ./examples/harness --grant extension.call,log.write
 bootidea ext install ./examples/toolbox --grant storage.read,storage.write,log.write
 ```
 
+## 发布
+
+两条线，互不干扰：
+
+| 渠道 | 触发 | 版本 | tag | 产物 |
+| --- | --- | --- | --- | --- |
+| nightly | 推送到 `feature/dev` | `<version>-nightly.<yyyymmdd>.<当日第 n 次>` | 与版本同名 | Windows `.zip` + Linux `.tar.gz`，prerelease |
+| stable | release-please 的发布 PR 合并 | `<version>` | `harness-v<version>` | 同上，正式 release |
+
+`<version>` 以仓库根的 `version.txt` 为准，`Cargo.toml` 由 cargo-workspace 插件同步。打包时两者不一致会直接失败——版本没跟到位时，发错号比构建失败更贵。
+
+nightly 的序号取自当日已有的 tag 数，所以一天内多次构建依次是 `.1`、`.2`、`.3`；日期按北京时间算，避免晚上 8 点后串到次日。包清单里的 `version` 会被改写成 nightly 版本，宿主据此区分同一分支的多次构建。
+
+stable 走 release-please，因此提交信息要遵循 Conventional Commits：只有 `feat:`、`fix:`、`feat!:` 这类前缀才会累积出发布 PR。`harness`、`update` 这样的信息不会产生版本。
+
 ## 验证
 
 单元测试：

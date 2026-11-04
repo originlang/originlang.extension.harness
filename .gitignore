@@ -1,5 +1,6 @@
 # 构建产物
 /target
+/dist
 **/*.rs.bk
 
 # 插件二进制：由 crates/plugin 构建后拷进示例包，不入库
