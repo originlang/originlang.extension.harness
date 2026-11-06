@@ -1,0 +1,7 @@
+# act 的本地执行约定（originlang.extension.harness）。
+# 具体流水线见 .act/nightly.yml。
+
+--action-offline-mode
+--bind
+-P ubuntu-latest=rust:1.99-bookworm
+-W .act/nightly.yml

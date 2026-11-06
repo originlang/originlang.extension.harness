@@ -1,46 +1,23 @@
-name: Release Please
+name: Release
 
-# 正式版本由 release-please 依据 conventional commits 产生：
-# 它开一个 "chore: release" PR，合并后打 harness-vX.Y.Z tag 并生成 CHANGELOG，
-# 随后本工作流在该 tag 上构建产物并挂到 release。nightly 不走这条线。
+# 发布唯一入口：push vX.Y.Z 标签（tag 即版本号，不依赖 release-please）。
+#   git tag v0.1.1 && git push origin v0.1.1
+# 触发后按 tag 检出代码，测试、构建插件产物并挂到同名 GitHub Release。nightly 不走这条线。
 on:
   push:
-    branches: ['feature/dev']
-  workflow_dispatch:
+    tags:
+      - "v*"
 
 permissions:
   contents: read
 
 concurrency:
-  group: release-please-${{ github.repository }}
+  group: release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  release-please:
-    name: release-please
-    if: github.ref_type == 'branch' && github.ref_name == (vars.RELEASE_BRANCH || 'feature/dev')
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    permissions:
-      contents: write
-      pull-requests: write
-      issues: write
-    outputs:
-      released: ${{ steps.release.outputs.release_created }}
-      tag: ${{ steps.release.outputs.tag_name }}
-    steps:
-      - uses: googleapis/release-please-action@v4
-        id: release
-        with:
-          token: ${{ secrets.RELEASE_PLEASE_TOKEN || github.token }}
-          target-branch: ${{ vars.RELEASE_BRANCH || 'feature/dev' }}
-          config-file: release-please-config.json
-          manifest-file: .release-please-manifest.json
-
   package:
     name: Package (${{ matrix.target }})
-    needs: release-please
-    if: needs.release-please.outputs.released == 'true'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     strategy:
@@ -58,10 +35,11 @@ jobs:
       CARGO_TERM_COLOR: always
       CARGO_INCREMENTAL: '0'
       BUILD_TARGET: ${{ matrix.target }}
+      RELEASE_TAG: ${{ github.ref_name }}
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ needs.release-please.outputs.tag }}
+          ref: ${{ github.ref_name }}
           persist-credentials: false
       - name: Install repository toolchain
         run: rustup show active-toolchain
@@ -80,8 +58,8 @@ jobs:
           compression-level: 0
 
   release:
-    name: Attach assets
-    needs: [release-please, package]
+    name: Create release and attach assets
+    needs: package
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
@@ -92,16 +70,20 @@ jobs:
           pattern: package-*
           path: dist
           merge-multiple: true
-      - name: Upload assets to the release
+      - name: Create release and upload assets
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          RELEASE_TAG: ${{ needs.release-please.outputs.tag }}
+          RELEASE_TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
           cd dist
           # 矩阵少一个平台时宁可失败，也不要发半套产物
           test "$(find . -maxdepth 1 -name '*.sha256' | wc -l)" -eq 2
           sha256sum --check ./*.sha256
-          gh release upload "$RELEASE_TAG" ./*.zip ./*.tar.gz ./*.sha256 --clobber
+          gh release create "$RELEASE_TAG" ./*.zip ./*.tar.gz ./*.sha256 \
+            --repo "$GH_REPO" \
+            --verify-tag \
+            --title "originlang-ext-harness ${RELEASE_TAG#v}" \
+            --generate-notes

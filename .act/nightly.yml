@@ -1,0 +1,120 @@
+name: Nightly
+
+# originlang.extension.harness 的本地夜间构建：测试 → 编译插件动态库 →
+# 打包 tar.gz（含 extension.json、build-info.json）+ sha256。
+# 产物只写到本仓库 dist/nightly/<stamp>/，不上传任何远端。
+#
+# 运行（在本仓库根目录）：
+#   act -W .act/nightly.yml
+#
+# 版本取 version.txt，且必须与工作区 Cargo.toml 一致（与上游 package.ps1 同约束）；
+# nightly 段用短 SHA 唯一标识。清单 main 指向 libharness.so（Linux 产物）。
+
+on:
+  push:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: '0'
+
+jobs:
+  nightly:
+    name: 构建并打包
+    runs-on: ubuntu-latest
+    container:
+      image: rust:1.99-bookworm
+    defaults:
+      run:
+        shell: bash
+    timeout-minutes: 45
+    steps:
+      - name: 取源码快照并计算版本
+        id: src
+        run: |
+          set -euo pipefail
+          src="$(pwd)"
+          work=/work/extension.harness
+          git config --global --add safe.directory '*'
+          test -d "$src/.git" || { echo "缺少仓库：$src" >&2; exit 1; }
+          rm -rf "$work"; mkdir -p "$work"
+          git -C "$src" archive --format=tar HEAD | tar -xf - -C "$work"
+
+          base="$(tr -d '\r\n' < "$work/version.txt")"
+          [ -n "$base" ] || { echo 'version.txt 为空' >&2; exit 1; }
+          cargo_base="$(sed -n 's/^version[[:space:]]*=[[:space:]]*"\([0-9][0-9.]*\)".*/\1/p' "$work/Cargo.toml" | head -n1)"
+          [ "$base" = "$cargo_base" ] || { echo "version.txt(${base}) 与 Cargo.toml(${cargo_base}) 不一致" >&2; exit 1; }
+          sha="$(git -C "$src" rev-parse --short=7 HEAD)"
+          day="$(date -u +%Y%m%d)"
+          stamp="nightly.${day}.$(date -u +%H%M)"
+          pkg="${base}-nightly.${day}.${sha}"
+          out="$src/dist/nightly/$stamp"
+          mkdir -p "$out"
+          {
+            echo "base=$base"
+            echo "pkg=$pkg"
+            echo "sha=$sha"
+            echo "stamp=$stamp"
+            echo "branch=$(git -C "$src" rev-parse --abbrev-ref HEAD)"
+            echo "dirty=$(git -C "$src" status --porcelain 2>/dev/null | wc -l | tr -d ' ')"
+            echo "out=$out"
+          } >> "$GITHUB_OUTPUT"
+          printf '版本 %s（HEAD %s）\n' "$pkg" "$sha"
+
+      - name: 测试
+        run: |
+          set -euo pipefail
+          cd /work/extension.harness
+          cargo test --locked -p originlang-ext-harness
+
+      - name: 构建插件动态库
+        run: |
+          set -euo pipefail
+          cd /work/extension.harness
+          cargo build --locked --release -p originlang-ext-harness-plugin
+          test -f target/release/libharness.so
+
+      - name: 打包与校验和
+        env:
+          PKG: ${{ steps.src.outputs.pkg }}
+          BASE: ${{ steps.src.outputs.base }}
+          SHA: ${{ steps.src.outputs.sha }}
+          STAMP: ${{ steps.src.outputs.stamp }}
+          BRANCH: ${{ steps.src.outputs.branch }}
+          DIRTY: ${{ steps.src.outputs.dirty }}
+          OUT: ${{ steps.src.outputs.out }}
+        run: |
+          set -euo pipefail
+          target=x86_64-unknown-linux-gnu
+          name="harness-${PKG}-${target}"
+          stage="/work/stage/$name"
+          rm -rf /work/stage
+          mkdir -p "$stage" "$OUT"
+          cd /work/extension.harness
+          install -m 0755 target/release/libharness.so "$stage/libharness.so"
+          # 清单随包发布：版本号写包版本，main 必须指向本平台的库文件名，否则宿主解析不到入口。
+          sed -e "s/\"version\": *\"[^\"]*\"/\"version\": \"${PKG}\"/" \
+              -e 's/"main": *"[^"]*"/"main": "libharness.so"/' \
+              examples/harness/extension.json > "$stage/extension.json"
+          grep -q "\"version\": \"${PKG}\"" "$stage/extension.json"
+          grep -q '"main": "libharness.so"' "$stage/extension.json"
+          if [ -f README.md ]; then cp README.md "$stage/"; fi
+          cat > "$stage/build-info.json" <<EOF
+          {
+            "channel": "nightly",
+            "repo": "originlang.extension.harness",
+            "version": "${BASE}",
+            "packageVersion": "${PKG}",
+            "commit": "${SHA}",
+            "branch": "${BRANCH}",
+            "dirtyFiles": ${DIRTY},
+            "target": "${target}",
+            "builtAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          }
+          EOF
+          tar -czf "$OUT/$name.tar.gz" -C /work/stage "$name"
+          cd "$OUT"
+          sha256sum "$name.tar.gz" > "$name.tar.gz.sha256"
+          printf '%s\n' "$PKG" > VERSION
+          cat "$name.tar.gz.sha256"
+          printf '产物目录：%s\n' "$OUT"

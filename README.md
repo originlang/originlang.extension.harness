@@ -73,13 +73,13 @@ bootidea ext install ./examples/toolbox --grant storage.read,storage.write,log.w
 | 渠道 | 触发 | 版本 | tag | 产物 |
 | --- | --- | --- | --- | --- |
 | nightly | 推送到 `feature/dev` | `<version>-nightly.<yyyymmdd>.<当日第 n 次>` | 与版本同名 | Windows `.zip` + Linux `.tar.gz`，prerelease |
-| stable | release-please 的发布 PR 合并 | `<version>` | `harness-v<version>` | 同上，正式 release |
+| stable | push `v<version>` 标签 | `<version>`（tag 去掉 v 前缀） | `v<version>` | 同上，正式 release |
 
-`<version>` 以仓库根的 `version.txt` 为准，`Cargo.toml` 由 cargo-workspace 插件同步。打包时两者不一致会直接失败——版本没跟到位时，发错号比构建失败更贵。
+`<version>` 以仓库根的 `version.txt` 为准，`Cargo.toml` 保持一致。打包时两者不一致会直接失败——版本没跟到位时，发错号比构建失败更贵。
 
 nightly 的序号取自当日已有的 tag 数，所以一天内多次构建依次是 `.1`、`.2`、`.3`；日期按北京时间算，避免晚上 8 点后串到次日。包清单里的 `version` 会被改写成 nightly 版本，宿主据此区分同一分支的多次构建。
 
-stable 走 release-please，因此提交信息要遵循 Conventional Commits：只有 `feat:`、`fix:`、`feat!:` 这类前缀才会累积出发布 PR。`harness`、`update` 这样的信息不会产生版本。
+stable 走 **push tag 即发布**：把 `version.txt` 与 `Cargo.toml` 改成目标版本并提交，然后 `git tag v0.1.1 && git push origin v0.1.1`，tag 触发 `release.yml` 完成打包与发布。
 
 ## 验证
 

@@ -22,7 +22,17 @@ if ($Channel -eq 'nightly') {
     if (-not $env:NIGHTLY_VERSION) { throw 'NIGHTLY_VERSION is required for nightly packages' }
     $version = $env:NIGHTLY_VERSION
 } else {
-    $version = $cargoVersion
+    # 正式版以 tag 为准（tag 即版本）：发布工作流传入 RELEASE_TAG=vX.Y.Z，
+    # 去掉 v 前缀后必须与 Cargo.toml 版本一致，否则宁可失败也不发错号。
+    if ($env:RELEASE_TAG) {
+        $tagVersion = $env:RELEASE_TAG -replace '^v', ''
+        if ($tagVersion -ne $cargoVersion) {
+            throw "RELEASE_TAG ($tagVersion) and Cargo.toml ($cargoVersion) disagree"
+        }
+        $version = $tagVersion
+    } else {
+        $version = $cargoVersion
+    }
 }
 
 $name = "harness-$version-$Target"

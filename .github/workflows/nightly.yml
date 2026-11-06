@@ -1,7 +1,7 @@
 name: Nightly
 
 # nightly 包只从开发分支产出：它带的是 branch 上的最新代码，不是发布版本。
-# 每次构建打一个 <cargo 版本>-nightly.<yyyymmdd>.<n> tag；正式版本走 release-please。
+# 每次构建打一个 <cargo 版本>-nightly.<yyyymmdd>.<n> tag；正式版本走 release.yml（push vX.Y.Z）。
 on:
   push:
     branches: ['feature/dev']
